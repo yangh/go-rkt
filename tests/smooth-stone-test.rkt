@@ -25,5 +25,5 @@
 (displayln "- 白棋应该有轻微阴影效果")
 (displayln "- 所有棋子边缘都应该平滑无锯齿")
 
-;; 启动GUI进行视觉测试
-(start-go-game)
+;; 使用带状态的启动函数
+(start-go-game-with-state final-state)

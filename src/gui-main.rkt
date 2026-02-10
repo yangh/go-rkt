@@ -1,6 +1,7 @@
 #lang racket
 
-(provide start-go-game)
+(provide start-go-game
+         start-go-game-with-state)
 
 (require racket/gui)
 (require "board.rkt")
@@ -315,6 +316,16 @@
                     [label "围棋游戏"] 
                     [width 900] 
                     [height 700]))
+  (send frame show #t))
+
+;; 启动带预设状态的游戏函数（用于测试）
+(define (start-go-game-with-state initial-state)
+  (define frame (new go-frame% 
+                    [label "围棋游戏 - 测试模式"] 
+                    [width 900] 
+                    [height 700]))
+  ;; 设置初始状态
+  (send frame set-game-state initial-state)
   (send frame show #t))
 
 ;; 模块测试
