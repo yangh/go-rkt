@@ -40,7 +40,7 @@
 
 ;; 生成移动序列
 (define (generate-move-sequence game-state)
-  (define moves (reverse (game-state-move-history game-state)))
+  (define moves (game-state-move-history game-state))  ; 移除多余的reverse
   (apply string-append
          (map (lambda (move index)
                 (define player-char (if (eq? (move-player move) 'black) "B" "W"))
@@ -87,19 +87,23 @@
   (define moves (extract-moves-from-sgf sgf-content))
   (replay-moves moves))
 
-;; 从SGF中提取移动序列
+;; 从SGF中提取移动序列（手工解析方法）
 (define (extract-moves-from-sgf sgf-content)
-  (define move-pattern #rx";([BW])\\[([a-z]{2}|\\[\\])\\]")
-  (define matches (regexp-match* move-pattern sgf-content #:match-select cdr))
+  ;; 简单的手工解析：按分号分割然后解析
+  (define parts (string-split sgf-content ";"))
+  (define moves '())
   
-  (map (lambda (match)
-         (define player (if (string=? (car match) "B") 'black 'white))
-         (define coord-str (cadr match))
-         (define pos (if (or (string=? coord-str "") (string=? coord-str "[]"))
-                        #f  ; pass
-                        (sgf-coord->position coord-str)))
-         (move pos player '() 0))  ; 时间戳设为0
-       matches))
+  (for ([part parts])
+    (when (>= (string-length part) 4)
+      (define first-char (string-ref part 0))
+      (when (or (char=? first-char #\B) (char=? first-char #\W))
+        (when (and (char=? (string-ref part 1) #\[) (char=? (string-ref part 4) #\]))
+          (define player (if (char=? first-char #\B) 'black 'white))
+          (define coord-str (substring part 2 4))
+          (define pos (sgf-coord->position coord-str))
+          (set! moves (cons (move pos player '() 0) moves))))))
+  
+  (reverse moves))
 
 ;; 重放移动序列重建游戏状态
 (define (replay-moves moves)
