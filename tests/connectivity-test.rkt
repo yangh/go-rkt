@@ -1,5 +1,8 @@
 #lang racket
 
+(require "../src/board.rkt")
+(require "../src/stone.rkt")
+
 ;; 正确的连通性检查实现
 (define (correct-get-connected-group board pos)
   "正确的连通组获取函数 - 能够正确识别相邻同色棋子"
@@ -10,10 +13,10 @@
       (let ([visited (make-hash)]
             [group '()]
             [queue (list pos)])
-        (let loop ()
-          (when (not (null? queue))
-            (define current (car queue))
-            (define rest-queue (cdr queue))
+        (let loop ([current-queue queue])
+          (when (not (null? current-queue))
+            (define current (car current-queue))
+            (define rest-queue (cdr current-queue))
             
             ;; 关键：只处理未访问且颜色匹配的位置
             (when (and (not (hash-has-key? visited current))
@@ -29,9 +32,7 @@
                               (not (hash-has-key? visited neighbor))))
                        neighbors))
               
-              (set! queue (append rest-queue valid-neighbors))))
-          (set! queue rest-queue)
-          (loop)))
+              (loop (append rest-queue valid-neighbors)))))
         (reverse group))))
 
 ;; 测试函数
