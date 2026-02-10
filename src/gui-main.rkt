@@ -55,19 +55,25 @@
     ;; 控制面板
     (define control-panel (new vertical-panel% [parent main-panel] 
                               [alignment '(center top)]
-                              [min-width 200]))
+                              [min-width 120]))
     
-    ;; 状态显示
-    (define status-message (new message% [parent control-panel]
-                               [label message-text]
-                               [min-width 180]
-                               [auto-resize #t]))
+    ;; 状态面板 - 垂直布局
+    (define status-panel (new vertical-panel% [parent control-panel]
+                             [alignment '(center center)]
+                             [spacing 5]))
     
-    ;; 分数显示
-    (define score-panel (new vertical-panel% [parent control-panel]
-                            [border 10]))
-    (define black-score-label (new message% [parent score-panel] [label "黑棋: 0"]))
-    (define white-score-label (new message% [parent score-panel] [label "白棋: 0"]))
+    ;; 行棋状态显示
+    (define status-message (new message% [parent status-panel] 
+                               [label "黑棋行棋"] ))
+    
+    ;; 手数显示
+    (define move-count-label (new message% [parent status-panel]
+                                 [label "总手数: 0"]))
+    
+    (define black-score-label (new message% [parent status-panel]
+                                  [label "黑棋提子: 0"]))
+    (define white-score-label (new message% [parent status-panel]
+                                  [label "白棋提子: 0"]))
     
     ;; 控制按钮
     (define button-panel (new vertical-panel% [parent control-panel]
@@ -98,6 +104,11 @@
       (send black-score-label set-label (format "黑棋提子: ~a" black-captured))
       (send white-score-label set-label (format "白棋提子: ~a" white-captured)))
     
+    ;; 新增：更新手数显示
+    (define/public (update-move-count)
+      (define move-count (length (game-state-move-history game-state)))
+      (send move-count-label set-label (format "总手数: ~a" move-count)))
+    
     (define/public (handle-board-click pos)
       (when (and pos (not (game-is-game-over? game-state)))
         (with-handlers
@@ -112,6 +123,7 @@
     (define (update-display)
       (send board-panel refresh)
       (update-scores)
+      (update-move-count)  ; 更新手数显示
       (define current-player (game-get-current-player game-state))
       (update-message (format "~a棋行棋" (if (eq? current-player 'black) "黑" "白"))))
     
