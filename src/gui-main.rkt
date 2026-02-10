@@ -305,7 +305,7 @@
             ;; 添加轻微阴影效果
             (send dc set-brush "lightgray" 'solid)
             (send dc set-pen "lightgray" 1 'transparent)
-            (send dc draw-ellipse (- x (- stone-radius 6)) (- y (- stone-radius 6))
+            (send dc draw-ellipse (+ x (- stone-radius 10)) (+ y (- stone-radius 10))
                   (ceiling (/ stone-radius 5)) (ceiling (/ stone-radius 5)))
                   )))
     ))
