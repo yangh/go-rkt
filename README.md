@@ -151,3 +151,5 @@ MIT License
 ## 作者
 
 使用Racket语言开发的围棋游戏项目
+
+起步于：QWEN 围棋游戏编程 https://chatgpt.com/share/698b0279-2688-800e-8169-78737f683d02
