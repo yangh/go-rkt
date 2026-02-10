@@ -277,13 +277,37 @@
           (draw-stone dc x y stone-color))))
     
     (define (draw-stone dc x y color)
-      (define stone-color (if (eq? color 'black) "black" "white"))
-      (define outline-color (if (eq? color 'black) "black" "black"))
+      ;; 启用抗锯齿平滑绘制
+      (send dc set-smoothing 'aligned)
       
-      (send dc set-brush stone-color 'solid)
-      (send dc set-pen outline-color 1 'solid)
-      (send dc draw-ellipse (- x stone-radius) (- y stone-radius) 
-            (* 2 stone-radius) (* 2 stone-radius)))))
+      (if (eq? color 'black)
+          ;; 绘制黑色棋子（带高光效果）
+          (begin
+            ;; 主体黑色
+            (send dc set-brush "black" 'solid)
+            (send dc set-pen "black" 1 'solid)
+            (send dc draw-ellipse (- x stone-radius) (- y stone-radius)
+                  (* 2 stone-radius) (* 2 stone-radius))
+            ;; 添加高光效果
+            (send dc set-brush "gray" 'solid)
+            (send dc set-pen "gray" 1 'transparent)
+            (send dc draw-ellipse (- x (- stone-radius 6)) (- y (- stone-radius 6))
+                  (ceiling (/ stone-radius 5)) (ceiling (/ stone-radius 5)))
+            )
+          ;; 绘制白色棋子（带阴影效果）
+          (begin
+            ;; 主体白色
+            (send dc set-brush "white" 'solid)
+            (send dc set-pen "black" 1 'solid)
+            (send dc draw-ellipse (- x stone-radius) (- y stone-radius)
+                  (* 2 stone-radius) (* 2 stone-radius))
+            ;; 添加轻微阴影效果
+            (send dc set-brush "lightgray" 'solid)
+            (send dc set-pen "lightgray" 1 'transparent)
+            (send dc draw-ellipse (- x (- stone-radius 6)) (- y (- stone-radius 6))
+                  (ceiling (/ stone-radius 5)) (ceiling (/ stone-radius 5)))
+                  )))
+    ))
 
 ;; 启动游戏函数
 (define (start-go-game)
