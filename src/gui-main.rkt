@@ -326,16 +326,16 @@
 (define (start-go-game)
   (define frame (new go-frame% 
                     [label "围棋游戏"] 
-                    [width 900] 
-                    [height 700]))
+                    [width 700] 
+                    [height 600]))
   (send frame show #t))
 
 ;; 启动带预设状态的游戏函数（用于测试）
 (define (start-go-game-with-state initial-state)
   (define frame (new go-frame% 
                     [label "围棋游戏 - 测试模式"] 
-                    [width 900] 
-                    [height 700]))
+                    [width 700] 
+                    [height 600]))
   ;; 设置初始状态
   (send frame set-game-state initial-state)
   (send frame show #t))
