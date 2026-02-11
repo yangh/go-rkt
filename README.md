@@ -4,6 +4,8 @@
 
 99% 代码由 QWen 大模型生成。
 
+![截图](./docs/Screenshot-go-rkt-1.0.png)
+
 ## 项目结构
 
 ```
