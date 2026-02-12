@@ -4,6 +4,7 @@
          start-go-game-with-state)
 
 (require racket/gui)
+(require racket/list)
 (require "board.rkt")
 (require "stone.rkt")
 (require "game-state.rkt")
@@ -18,6 +19,9 @@
     
     ;; 游戏状态
     (field [game-state (make-initial-game-state)]
+           [replay-source-state #f]
+           [replay-mode? #f]
+           [replay-index 0]
            [selected-pos #f]
            [message-text "黑棋先行"])
     
@@ -86,12 +90,49 @@
                               [callback (lambda (button event) (do-resign))]))
     (define undo-button (new button% [parent button-panel] [label "悔棋"]
                             [callback (lambda (button event) (do-undo))]))
+    (define replay-button (new button% [parent button-panel] [label "复盘"]
+                              [callback (lambda (button event) (toggle-replay-mode))]))
+
+    ;; 复盘控制区（紧凑模式：两两一行）
+    (define replay-panel (new vertical-panel% [parent control-panel]
+                             [alignment '(center center)]
+                             [spacing 2]))
+    (define replay-row-1 (new horizontal-panel% [parent replay-panel]
+                             [alignment '(center center)]
+                             [spacing 3]))
+    (define replay-row-2 (new horizontal-panel% [parent replay-panel]
+                             [alignment '(center center)]
+                             [spacing 3]))
+    (define replay-row-3 (new horizontal-panel% [parent replay-panel]
+                             [alignment '(center center)]
+                             [spacing 3]))
+
+    ;; 第1行：单手前后
+    (define prev-move-button (new button% [parent replay-row-1] [label "<"]
+                                  [callback (lambda (button event) (replay-go-prev))]))
+    (define next-move-button (new button% [parent replay-row-1] [label ">"]
+                                  [callback (lambda (button event) (replay-go-next))]))
+
+    ;; 第2行：5手前后
+    (define prev-five-move-button (new button% [parent replay-row-2] [label "<<"]
+                                       [callback (lambda (button event) (replay-go-prev5))]))
+    (define next-five-move-button (new button% [parent replay-row-2] [label ">>"]
+                                       [callback (lambda (button event) (replay-go-next5))]))
+
+    ;; 第3行：首手/末手
+    (define first-move-button (new button% [parent replay-row-3] [label "|<"]
+                                   [callback (lambda (button event) (replay-go-first))]))
+    (define last-move-button (new button% [parent replay-row-3] [label ">|"]
+                                  [callback (lambda (button event) (replay-go-last))]))
     
     ;; 游戏控制方法
     (define/public (get-game-state) game-state)
     
     (define/public (set-game-state new-state)
       (set! game-state new-state)
+      (when replay-mode?
+        (set! replay-source-state new-state)
+        (set! replay-index (length (game-state-move-history new-state))))
       (update-display))
     
     (define/public (update-message msg)
@@ -106,11 +147,18 @@
     
     ;; 新增：更新手数显示
     (define/public (update-move-count)
-      (define move-count (length (game-state-move-history game-state)))
-      (send move-count-label set-label (format "总手数: ~a" move-count)))
-    
+      (if replay-mode?
+          (send move-count-label set-label
+                (format "手数: ~a/~a"
+                        replay-index
+                        (replay-total-moves)))
+          (send move-count-label set-label
+                (format "手数: ~a" (length (game-state-move-history game-state))))))
+
     (define/public (handle-board-click pos)
-      (when (and pos (not (game-is-game-over? game-state)))
+      (when replay-mode?
+        (send-message-box "提示" "当前为复盘模式，不能落子"))
+      (when (and (not replay-mode?) pos (not (game-is-game-over? game-state)))
         (with-handlers
           ([exn:fail? (lambda (exn)
                        (send-message-box "错误" (exn-message exn)))])
@@ -124,8 +172,11 @@
       (send board-panel refresh)
       (update-scores)
       (update-move-count)  ; 更新手数显示
-      (define current-player (game-get-current-player game-state))
-      (update-message (format "~a棋行棋" (if (eq? current-player 'black) "黑" "白"))))
+      (if replay-mode?
+          (update-message "复盘模式")
+          (let ([current-player (game-get-current-player game-state)])
+            (update-message (format "~a棋行棋" (if (eq? current-player 'black) "黑" "白")))))
+      (update-replay-controls))
     
     (define (check-game-end)
       (when (game-is-game-over? game-state)
@@ -138,18 +189,24 @@
         (send-message-box "游戏结束" msg)))
     
     (define (new-game)
+      (when replay-mode?
+        (exit-replay-mode))
       (set! game-state (make-initial-game-state))
       (set! selected-pos #f)
       (update-display))
-    
+
     (define (do-pass)
-      (when (not (game-is-game-over? game-state))
+      (when replay-mode?
+        (send-message-box "提示" "复盘模式下不能Pass"))
+      (when (and (not replay-mode?) (not (game-is-game-over? game-state)))
         (set! game-state (game-pass game-state))
         (update-display)
         (check-game-end)))
-    
+
     (define (do-resign)
-      (when (not (game-is-game-over? game-state))
+      (when replay-mode?
+        (send-message-box "提示" "复盘模式下不能认输"))
+      (when (and (not replay-mode?) (not (game-is-game-over? game-state)))
         (define result (get-choice "确认认输" "确定要认输吗？" '("确定" "取消")))
         (when (string=? result "确定")
           (set! game-state (game-resign game-state))
@@ -159,8 +216,11 @@
                                              (if (eq? winner 'black) "黑" "白"))))))
     
     (define (do-undo)
-      (set! game-state (game-undo game-state))
-      (update-display))
+      (if replay-mode?
+          (send-message-box "提示" "复盘模式下不能悔棋")
+          (begin
+            (set! game-state (game-undo game-state))
+            (update-display))))
     
     (define (load-sgf-file)
       (define file-path (get-file "选择SGF文件" this #f #f "sgf"))
@@ -168,6 +228,8 @@
         (with-handlers
           ([exn:fail? (lambda (exn)
                        (send-message-box "错误" (format "加载失败: ~a" (exn-message exn))))])
+          (when replay-mode?
+            (exit-replay-mode))
           (define loaded-state (sgf-load-game file-path))
           (set! game-state loaded-state)
           (update-display))))
@@ -175,7 +237,7 @@
     (define (save-sgf-file)
       (define file-path (put-file "保存SGF文件" this #f "game.sgf" #f '()))
       (when file-path
-        (sgf-save-game game-state file-path)
+        (sgf-save-game (if replay-mode? replay-source-state game-state) file-path)
         (send-message-box "成功" "棋谱已保存")))
     
     (define (load-custom-file)
@@ -184,6 +246,8 @@
         (with-handlers
           ([exn:fail? (lambda (exn)
                        (send-message-box "错误" (format "加载失败: ~a" (exn-message exn))))])
+          (when replay-mode?
+            (exit-replay-mode))
           (define loaded-state (custom-load-game file-path))
           (set! game-state loaded-state)
           (update-display))))
@@ -191,8 +255,96 @@
     (define (save-custom-file)
       (define file-path (put-file "保存自定义格式文件" this #f "game.txt" #f '()))
       (when file-path
-        (custom-save-game game-state file-path)
+        (custom-save-game (if replay-mode? replay-source-state game-state) file-path)
         (send-message-box "成功" "棋谱已保存")))
+
+    (define (replay-total-moves)
+      (if replay-source-state
+          (length (game-state-move-history replay-source-state))
+          0))
+
+    (define (state-at-move-index source-state move-index)
+      (define total (length (game-state-move-history source-state)))
+      (define target (max 0 (min move-index total)))
+      (define ordered-moves (reverse (game-state-move-history source-state))) ; 从首手到末手
+      (define rebuilt
+        (for/fold ([st (make-initial-game-state)])
+                  ([mv (in-list (take ordered-moves target))])
+          (if (move-position mv)
+              (game-make-move st (move-position mv))
+              (game-pass st))))
+      rebuilt)
+
+    (define (enter-replay-mode)
+      (set! replay-mode? #t)
+      (set! replay-source-state game-state)
+      (set! replay-index (length (game-state-move-history replay-source-state)))
+      (send replay-button set-label "结束")
+      (send first-move-button show #t)
+      (send prev-five-move-button show #t)
+      (send prev-move-button show #t)
+      (send next-move-button show #t)
+      (send next-five-move-button show #t)
+      (send last-move-button show #t)
+      (update-display))
+
+    (define (exit-replay-mode)
+      (when replay-source-state
+        (set! game-state replay-source-state))
+      (set! replay-mode? #f)
+      (set! replay-index 0)
+      (set! replay-source-state #f)
+      (send replay-button set-label "复盘")
+      (send first-move-button show #f)
+      (send prev-five-move-button show #f)
+      (send prev-move-button show #f)
+      (send next-move-button show #f)
+      (send next-five-move-button show #f)
+      (send last-move-button show #f)
+      (update-display))
+
+    (define (toggle-replay-mode)
+      (if replay-mode?
+          (exit-replay-mode)
+          (enter-replay-mode)))
+
+    (define (set-replay-index! idx)
+      (when replay-mode?
+        (define total (replay-total-moves))
+        (define new-index (max 0 (min idx total)))
+        (set! replay-index new-index)
+        (set! game-state (state-at-move-index replay-source-state new-index))
+        (update-display)))
+
+    (define (replay-go-first)
+      (set-replay-index! 0))
+
+    (define (replay-go-prev)
+      (set-replay-index! (sub1 replay-index)))
+
+    (define (replay-go-prev5)
+      (set-replay-index! (- replay-index 5)))
+
+    (define (replay-go-next)
+      (set-replay-index! (add1 replay-index)))
+
+    (define (replay-go-next5)
+      (set-replay-index! (+ replay-index 5)))
+
+    (define (replay-go-last)
+      (set-replay-index! (replay-total-moves)))
+
+    (define (update-replay-controls)
+      (send pass-button enable (not replay-mode?))
+      (send resign-button enable (not replay-mode?))
+      (send undo-button enable (not replay-mode?))
+      (define total (replay-total-moves))
+      (send first-move-button enable (and replay-mode? (> replay-index 0)))
+      (send prev-five-move-button enable (and replay-mode? (> replay-index 0)))
+      (send prev-move-button enable (and replay-mode? (> replay-index 0)))
+      (send next-move-button enable (and replay-mode? (< replay-index total)))
+      (send next-five-move-button enable (and replay-mode? (< replay-index total)))
+      (send last-move-button enable (and replay-mode? (< replay-index total))))
     
     (define (show-about-dialog)
       (send-message-box "关于" 
@@ -215,6 +367,14 @@
       
       (send dialog show #t)
       result)
+
+    ;; 默认隐藏复盘控制条
+    (send first-move-button show #f)
+    (send prev-five-move-button show #f)
+    (send prev-move-button show #f)
+    (send next-move-button show #f)
+    (send next-five-move-button show #f)
+    (send last-move-button show #f)
     
     ;; 初始化显示
     (update-display)))
