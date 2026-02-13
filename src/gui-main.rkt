@@ -11,6 +11,7 @@
 (require "game-engine.rkt")
 (require "sgf-format.rkt")
 (require "custom-format.rkt")
+(require "i18n.rkt")
 
 ;; 主游戏窗口
 (define go-frame%
@@ -23,31 +24,36 @@
            [replay-mode? #f]
            [replay-index 0]
            [selected-pos #f]
-           [message-text "黑棋先行"])
+           [message-text (tr 'label-player-black-turn "黑棋行棋")])
     
     ;; 创建界面组件
     (define menu-bar (new menu-bar% [parent this]))
-    (define file-menu (new menu% [label "文件"] [parent menu-bar]))
-    (define help-menu (new menu% [label "帮助"] [parent menu-bar]))
+    (define file-menu (new menu% [label (tr 'menu-file "文件")] [parent menu-bar]))
+    (define language-menu (new menu% [label (tr 'menu-language "语言")] [parent menu-bar]))
+    (define help-menu (new menu% [label (tr 'menu-help "帮助")] [parent menu-bar]))
     
     ;; 文件菜单项
-    (new menu-item% [label "新游戏"] [parent file-menu]
-         [callback (lambda (item event) (new-game))])
-    (new menu-item% [label "打开SGF..."] [parent file-menu]
-         [callback (lambda (item event) (load-sgf-file))])
-    (new menu-item% [label "保存SGF..."] [parent file-menu]
-         [callback (lambda (item event) (save-sgf-file))])
-    (new menu-item% [label "打开自定义格式..."] [parent file-menu]
-         [callback (lambda (item event) (load-custom-file))])
-    (new menu-item% [label "保存自定义格式..."] [parent file-menu]
-         [callback (lambda (item event) (save-custom-file))])
+    (define new-game-item (new menu-item% [label (tr 'menu-new-game "新游戏")] [parent file-menu]
+                               [callback (lambda (item event) (new-game))]))
+    (define open-sgf-item (new menu-item% [label (tr 'menu-open-sgf "打开SGF...")] [parent file-menu]
+                              [callback (lambda (item event) (load-sgf-file))]))
+    (define save-sgf-item (new menu-item% [label (tr 'menu-save-sgf "保存SGF...")] [parent file-menu]
+                              [callback (lambda (item event) (save-sgf-file))]))
+    (define open-custom-item (new menu-item% [label (tr 'menu-open-custom "打开自定义格式...")] [parent file-menu]
+                                 [callback (lambda (item event) (load-custom-file))]))
+    (define save-custom-item (new menu-item% [label (tr 'menu-save-custom "保存自定义格式...")] [parent file-menu]
+                                 [callback (lambda (item event) (save-custom-file))]))
     (new separator-menu-item% [parent file-menu])
-    (new menu-item% [label "退出"] [parent file-menu]
-         [callback (lambda (item event) (send this show #f))])
+    (define exit-item (new menu-item% [label (tr 'menu-exit "退出")] [parent file-menu]
+                           [callback (lambda (item event) (send this show #f))]))
     
     ;; 帮助菜单项
-    (new menu-item% [label "关于"] [parent help-menu]
-         [callback (lambda (item event) (show-about-dialog))])
+    (define about-item (new menu-item% [label (tr 'menu-about "关于")] [parent help-menu]
+                            [callback (lambda (item event) (show-about-dialog))]))
+    (define lang-zh-item (new menu-item% [label (tr 'menu-lang-zh "中文")] [parent language-menu]
+                              [callback (lambda (item event) (switch-language 'zh))]))
+    (define lang-en-item (new menu-item% [label (tr 'menu-lang-en "英文")] [parent language-menu]
+                              [callback (lambda (item event) (switch-language 'en))]))
     
     ;; 主面板
     (define main-panel (new horizontal-panel% [parent this] [alignment '(center center)]))
@@ -59,7 +65,7 @@
     ;; 控制面板
     (define control-panel (new vertical-panel% [parent main-panel] 
                               [alignment '(center top)]
-                              [min-width 120]))
+                              [min-width 140]))
     
     ;; 状态面板 - 垂直布局
     (define status-panel (new vertical-panel% [parent control-panel]
@@ -68,31 +74,31 @@
     
     ;; 行棋状态显示
     (define status-message (new message% [parent status-panel] 
-                               [label "黑棋行棋"] ))
+                               [label (tr 'label-player-black-turn "黑棋行棋")] ))
     
     ;; 手数显示
     (define move-count-label (new message% [parent status-panel]
-                                 [label "总手数: 0"]))
+                                 [label (format (tr 'label-move-count "手数: ~a") 0)]))
     
     (define black-score-label (new message% [parent status-panel]
-                                  [label "黑棋提子: 0"]))
+                                  [label (format (tr 'label-black-captured "黑棋提子: ~a") 0)]))
     (define white-score-label (new message% [parent status-panel]
-                                  [label "白棋提子: 0"]))
+                                  [label (format (tr 'label-white-captured "白棋提子: ~a") 0)]))
     
     ;; 控制按钮
     (define button-panel (new vertical-panel% [parent control-panel]
                              [alignment '(center center)]
                              [spacing 5]))
     
-    (define pass-button (new button% [parent button-panel] [label "Pass"]
+    (define pass-button (new button% [parent button-panel] [label (tr 'button-pass "Pass")]
                             [callback (lambda (button event) (do-pass))]))
-    (define resign-button (new button% [parent button-panel] [label "认输"]
+    (define resign-button (new button% [parent button-panel] [label (tr 'button-resign "认输")]
                               [callback (lambda (button event) (do-resign))]))
-    (define undo-button (new button% [parent button-panel] [label "悔棋"]
+    (define undo-button (new button% [parent button-panel] [label (tr 'button-undo "悔棋")]
                             [callback (lambda (button event) (do-undo))]))
-    (define situation-button (new button% [parent button-panel] [label "局势"]
+    (define situation-button (new button% [parent button-panel] [label (tr 'button-situation "局势")]
                                  [callback (lambda (button event) (show-situation-dialog))]))
-    (define replay-button (new button% [parent button-panel] [label "复盘"]
+    (define replay-button (new button% [parent button-panel] [label (tr 'button-replay "复盘")]
                               [callback (lambda (button event) (toggle-replay-mode))]))
 
     ;; 复盘控制区（紧凑模式：两两一行）
@@ -129,6 +135,45 @@
     
     ;; 游戏控制方法
     (define/public (get-game-state) game-state)
+
+    (define (player-name color)
+      (if (eq? color 'black)
+          (tr 'color-black "黑")
+          (tr 'color-white "白")))
+
+    (define (winner-name color)
+      (cond
+        [(eq? color 'black) (tr 'player-black "黑棋")]
+        [(eq? color 'white) (tr 'player-white "白棋")]
+        [else (tr 'player-draw "和棋")]))
+
+    (define (refresh-i18n)
+      (send this set-label (tr 'window-title "围棋游戏"))
+      (send file-menu set-label (tr 'menu-file "文件"))
+      (send help-menu set-label (tr 'menu-help "帮助"))
+      (send language-menu set-label (tr 'menu-language "语言"))
+      (send new-game-item set-label (tr 'menu-new-game "新游戏"))
+      (send open-sgf-item set-label (tr 'menu-open-sgf "打开SGF..."))
+      (send save-sgf-item set-label (tr 'menu-save-sgf "保存SGF..."))
+      (send open-custom-item set-label (tr 'menu-open-custom "打开自定义格式..."))
+      (send save-custom-item set-label (tr 'menu-save-custom "保存自定义格式..."))
+      (send exit-item set-label (tr 'menu-exit "退出"))
+      (send about-item set-label (tr 'menu-about "关于"))
+      (send lang-zh-item set-label (tr 'menu-lang-zh "中文"))
+      (send lang-en-item set-label (tr 'menu-lang-en "英文"))
+      (send pass-button set-label (tr 'button-pass "Pass"))
+      (send resign-button set-label (tr 'button-resign "认输"))
+      (send undo-button set-label (tr 'button-undo "悔棋"))
+      (send situation-button set-label (tr 'button-situation "局势"))
+      (send replay-button set-label
+            (if replay-mode?
+                (tr 'button-end-replay "结束")
+                (tr 'button-replay "复盘")))
+      (update-display))
+
+    (define (switch-language lang)
+      (set-lang! lang)
+      (refresh-i18n))
     
     (define/public (set-game-state new-state)
       (set! game-state new-state)
@@ -144,26 +189,26 @@
     (define/public (update-scores)
       (define black-captured (game-state-get-captured-count game-state 'black))
       (define white-captured (game-state-get-captured-count game-state 'white))
-      (send black-score-label set-label (format "黑棋提子: ~a" black-captured))
-      (send white-score-label set-label (format "白棋提子: ~a" white-captured)))
+      (send black-score-label set-label (format (tr 'label-black-captured "黑棋提子: ~a") black-captured))
+      (send white-score-label set-label (format (tr 'label-white-captured "白棋提子: ~a") white-captured)))
     
     ;; 新增：更新手数显示
     (define/public (update-move-count)
       (if replay-mode?
           (send move-count-label set-label
-                (format "手数: ~a/~a"
+                (format (tr 'label-move-count-replay "手数: ~a/~a")
                         replay-index
                         (replay-total-moves)))
           (send move-count-label set-label
-                (format "手数: ~a" (length (game-state-move-history game-state))))))
+                (format (tr 'label-move-count "手数: ~a") (length (game-state-move-history game-state))))))
 
     (define/public (handle-board-click pos)
       (when replay-mode?
-        (send-message-box "提示" "当前为复盘模式，不能落子"))
+        (send-message-box (tr 'msg-title-tip "提示") (tr 'msg-replay-cannot-place "当前为复盘模式，不能落子")))
       (when (and (not replay-mode?) pos (not (game-is-game-over? game-state)))
         (with-handlers
           ([exn:fail? (lambda (exn)
-                       (send-message-box "错误" (exn-message exn)))])
+                       (send-message-box (tr 'msg-title-error "错误") (exn-message exn)))])
           (define new-state (game-make-move game-state pos))
           (set! game-state new-state)
           (update-display)
@@ -175,9 +220,10 @@
       (update-scores)
       (update-move-count)  ; 更新手数显示
       (if replay-mode?
-          (update-message "复盘模式")
+          (update-message (tr 'label-replay-mode "复盘模式"))
           (let ([current-player (game-get-current-player game-state)])
-            (update-message (format "~a棋行棋" (if (eq? current-player 'black) "黑" "白")))))
+            (update-message (format (tr 'label-player-turn "~a棋行棋")
+                                    (player-name current-player)))))
       (update-replay-controls))
     
     (define (check-game-end)
@@ -185,10 +231,12 @@
         (define winner (game-get-winner game-state))
         (define score-result (game-get-score game-state))
         (define msg 
-          (format "游戏结束！~a胜~a目" 
-                  (if (eq? winner 'black) "黑棋" "白棋")
-                  (abs (list-ref score-result 5))))
-        (send-message-box "游戏结束" msg)))
+          (if (eq? winner 'draw)
+              (tr 'msg-game-over-draw "游戏结束！双方平局")
+              (format (tr 'msg-game-over-score "游戏结束！~a胜~a目")
+                      (winner-name winner)
+                      (abs (list-ref score-result 5)))))
+        (send-message-box (tr 'msg-title-game-over "游戏结束") msg)))
     
     (define (new-game)
       (when replay-mode?
@@ -199,7 +247,8 @@
 
     (define (do-pass)
       (when replay-mode?
-        (send-message-box "提示" "复盘模式下不能Pass"))
+        (send-message-box (tr 'msg-title-tip "提示")
+                          (tr 'msg-replay-cannot-pass "复盘模式下不能Pass")))
       (when (and (not replay-mode?) (not (game-is-game-over? game-state)))
         (set! game-state (game-pass game-state))
         (update-display)
@@ -207,29 +256,39 @@
 
     (define (do-resign)
       (when replay-mode?
-        (send-message-box "提示" "复盘模式下不能认输"))
+        (send-message-box (tr 'msg-title-tip "提示")
+                          (tr 'msg-replay-cannot-resign "复盘模式下不能认输")))
       (when (and (not replay-mode?) (not (game-is-game-over? game-state)))
-        (define result (get-choice "确认认输" "确定要认输吗？" '("确定" "取消")))
-        (when (string=? result "确定")
+        (define confirm-choice (tr 'choice-confirm "确定"))
+        (define cancel-choice (tr 'choice-cancel "取消"))
+        (define result
+          (get-choice (tr 'msg-confirm-resign-title "确认认输")
+                      (tr 'msg-confirm-resign-body "确定要认输吗？")
+                      (list confirm-choice cancel-choice)))
+        (when (string=? result confirm-choice)
           (set! game-state (game-resign game-state))
           (update-display)
           (define winner (game-get-winner game-state))
-          (send-message-box "游戏结束" (format "~a棋获胜！" 
-                                             (if (eq? winner 'black) "黑" "白"))))))
+          (send-message-box (tr 'msg-title-game-over "游戏结束")
+                            (format (tr 'msg-resign-winner "~a棋获胜！")
+                                    (player-name winner))))))
     
     (define (do-undo)
       (if replay-mode?
-          (send-message-box "提示" "复盘模式下不能悔棋")
+          (send-message-box (tr 'msg-title-tip "提示")
+                            (tr 'msg-replay-cannot-undo "复盘模式下不能悔棋"))
           (begin
             (set! game-state (game-undo game-state))
             (update-display))))
     
     (define (load-sgf-file)
-      (define file-path (get-file "选择SGF文件" this #f #f "sgf"))
+      (define file-path (get-file (tr 'menu-open-sgf "打开SGF...") this #f #f "sgf"))
       (when file-path
         (with-handlers
           ([exn:fail? (lambda (exn)
-                       (send-message-box "错误" (format "加载失败: ~a" (exn-message exn))))])
+                       (send-message-box
+                        (tr 'msg-title-error "错误")
+                        (format (tr 'msg-load-failed "加载失败: ~a") (exn-message exn))))])
           (when replay-mode?
             (exit-replay-mode))
           (define loaded-state (sgf-load-game file-path))
@@ -237,17 +296,20 @@
           (update-display))))
     
     (define (save-sgf-file)
-      (define file-path (put-file "保存SGF文件" this #f "game.sgf" #f '()))
+      (define file-path (put-file (tr 'menu-save-sgf "保存SGF...") this #f "game.sgf" #f '()))
       (when file-path
         (sgf-save-game (if replay-mode? replay-source-state game-state) file-path)
-        (send-message-box "成功" "棋谱已保存")))
+        (send-message-box (tr 'msg-title-success "成功")
+                          (tr 'msg-sgf-saved "棋谱已保存"))))
     
     (define (load-custom-file)
-      (define file-path (get-file "选择自定义格式文件" this #f #f "txt"))
+      (define file-path (get-file (tr 'menu-open-custom "打开自定义格式...") this #f #f "txt"))
       (when file-path
         (with-handlers
           ([exn:fail? (lambda (exn)
-                       (send-message-box "错误" (format "加载失败: ~a" (exn-message exn))))])
+                       (send-message-box
+                        (tr 'msg-title-error "错误")
+                        (format (tr 'msg-load-failed "加载失败: ~a") (exn-message exn))))])
           (when replay-mode?
             (exit-replay-mode))
           (define loaded-state (custom-load-game file-path))
@@ -255,10 +317,11 @@
           (update-display))))
     
     (define (save-custom-file)
-      (define file-path (put-file "保存自定义格式文件" this #f "game.txt" #f '()))
+      (define file-path (put-file (tr 'menu-save-custom "保存自定义格式...") this #f "game.txt" #f '()))
       (when file-path
         (custom-save-game (if replay-mode? replay-source-state game-state) file-path)
-        (send-message-box "成功" "棋谱已保存")))
+        (send-message-box (tr 'msg-title-success "成功")
+                          (tr 'msg-custom-saved "棋谱已保存"))))
 
     (define (replay-total-moves)
       (if replay-source-state
@@ -281,7 +344,7 @@
       (set! replay-mode? #t)
       (set! replay-source-state game-state)
       (set! replay-index (length (game-state-move-history replay-source-state)))
-      (send replay-button set-label "结束")
+      (send replay-button set-label (tr 'button-end-replay "结束"))
       (send first-move-button show #t)
       (send prev-five-move-button show #t)
       (send prev-move-button show #t)
@@ -296,7 +359,7 @@
       (set! replay-mode? #f)
       (set! replay-index 0)
       (set! replay-source-state #f)
-      (send replay-button set-label "复盘")
+      (send replay-button set-label (tr 'button-replay "复盘"))
       (send first-move-button show #f)
       (send prev-five-move-button show #f)
       (send prev-move-button show #f)
@@ -349,8 +412,8 @@
       (send last-move-button enable (and replay-mode? (< replay-index total))))
     
     (define (show-about-dialog)
-      (send-message-box "关于" 
-                       "围棋游戏 v1.0\n使用Racket语言开发\n支持中国围棋规则"))
+      (send-message-box (tr 'msg-title-about "关于")
+                        (tr 'msg-about-text "围棋游戏 v1.0\n使用Racket语言开发\n支持中国围棋规则")))
 
     (define (show-situation-dialog)
       (define score-result (game-get-score game-state))
@@ -359,15 +422,16 @@
       (define difference (list-ref score-result 5))
       (define lead-message
         (cond
-          [(> difference 0) (format "黑棋领先 ~a 目" difference)]
-          [(< difference 0) (format "白棋领先 ~a 目" (abs difference))]
-          [else "双方平局"]))
+          [(> difference 0) (format (tr 'msg-lead-black "黑棋领先 ~a 目") difference)]
+          [(< difference 0) (format (tr 'msg-lead-white "白棋领先 ~a 目") (abs difference))]
+          [else (tr 'msg-lead-even "双方平局")]))
       (send-message-box
-       "局势"
-       (format "黑棋: ~a 目\n白棋: ~a 目\n差距: ~a"
-               black-total
-               white-total
-               lead-message)))
+       (tr 'msg-title-situation "局势")
+       (format "~a\n~a\n~a"
+               (format (tr 'msg-situation-black "黑棋: ~a 目") black-total)
+               (format (tr 'msg-situation-white "白棋: ~a 目") white-total)
+               (format (tr 'msg-situation-diff "差距: ~a")
+                       lead-message))))
     
     (define (send-message-box title message)
       (message-box title message this '(ok)))
@@ -396,7 +460,7 @@
     (send last-move-button show #f)
     
     ;; 初始化显示
-    (update-display)))
+    (refresh-i18n)))
 
 ;; 棋盘画布类
 (define board-canvas%
@@ -504,7 +568,7 @@
 ;; 启动游戏函数
 (define (start-go-game)
   (define frame (new go-frame% 
-                    [label "围棋游戏"] 
+                    [label (tr 'window-title "围棋游戏")]
                     [width 700] 
                     [height 600]))
   (send frame show #t))
@@ -512,7 +576,7 @@
 ;; 启动带预设状态的游戏函数（用于测试）
 (define (start-go-game-with-state initial-state)
   (define frame (new go-frame% 
-                    [label "围棋游戏 - 测试模式"] 
+                    [label (tr 'window-title-test "围棋游戏 - 测试模式")]
                     [width 700] 
                     [height 600]))
   ;; 设置初始状态
