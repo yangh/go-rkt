@@ -90,6 +90,8 @@
                               [callback (lambda (button event) (do-resign))]))
     (define undo-button (new button% [parent button-panel] [label "悔棋"]
                             [callback (lambda (button event) (do-undo))]))
+    (define situation-button (new button% [parent button-panel] [label "局势"]
+                                 [callback (lambda (button event) (show-situation-dialog))]))
     (define replay-button (new button% [parent button-panel] [label "复盘"]
                               [callback (lambda (button event) (toggle-replay-mode))]))
 
@@ -349,6 +351,23 @@
     (define (show-about-dialog)
       (send-message-box "关于" 
                        "围棋游戏 v1.0\n使用Racket语言开发\n支持中国围棋规则"))
+
+    (define (show-situation-dialog)
+      (define score-result (game-get-score game-state))
+      (define black-total (list-ref score-result 1))
+      (define white-total (list-ref score-result 3))
+      (define difference (list-ref score-result 5))
+      (define lead-message
+        (cond
+          [(> difference 0) (format "黑棋领先 ~a 目" difference)]
+          [(< difference 0) (format "白棋领先 ~a 目" (abs difference))]
+          [else "双方平局"]))
+      (send-message-box
+       "局势"
+       (format "黑棋: ~a 目\n白棋: ~a 目\n差距: ~a"
+               black-total
+               white-total
+               lead-message)))
     
     (define (send-message-box title message)
       (message-box title message this '(ok)))
