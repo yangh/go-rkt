@@ -97,7 +97,21 @@ go-rkt/
 
 ### 启动游戏
 ```bash
-racket main.rkt
+racket src/main.rkt
+```
+
+### 启动时加载棋局
+```bash
+racket src/main.rkt --load data/game-01.txt
+racket src/main.rkt -l data/game-01.txt
+```
+
+`--load`/`-l` 支持 `.sgf` 和 `.txt` 文件。
+
+### 查看命令行帮助
+```bash
+racket src/main.rkt --help
+racket src/main.rkt -h
 ```
 
 ### 基本操作
