@@ -7,6 +7,7 @@
 (require racket/runtime-path)
 (require "sgf-format.rkt")
 (require "custom-format.rkt")
+(require "i18n.rkt")
 
 (define (load-state-from-file file-path)
   (define ext
@@ -25,12 +26,15 @@
   (displayln "")
   (displayln "选项:")
   (displayln "  -l, --load <file>   启动时加载棋局文件（.sgf 或 .txt）")
+  (displayln "  --lang <zh|en>      设置界面语言（中文或英文，默认英文）")
   (displayln "  -h, --help          显示帮助信息并退出"))
 
+(struct parsed-args (load-file lang) #:transparent)
+
 (define (parse-args args)
-  (let loop ([rest args] [load-file #f])
+  (let loop ([rest args] [load-file #f] [lang #f])
     (cond
-      [(null? rest) load-file]
+      [(null? rest) (parsed-args load-file lang)]
       [(or (string=? (car rest) "--help")
            (string=? (car rest) "-h"))
        (print-help)
@@ -41,14 +45,32 @@
          (eprintf "错误: 参数 ~a 需要一个文件路径\n" (car rest))
          (print-help)
          (exit 1))
-       (loop (cddr rest) (cadr rest))]
+       (loop (cddr rest) (cadr rest) lang)]
+      [(string=? (car rest) "--lang")
+       (when (null? (cdr rest))
+         (eprintf "错误: 参数 --lang 需要指定语言（zh 或 en）\n")
+         (print-help)
+         (exit 1))
+       (define lang-value (cadr rest))
+       (unless (member lang-value '("zh" "en"))
+         (eprintf "错误: 不支持的语言 ~a（仅支持 zh 或 en）\n" lang-value)
+         (print-help)
+         (exit 1))
+       (loop (cddr rest) load-file (string->symbol lang-value))]
       [else
        (eprintf "错误: 不支持的参数 ~a\n" (car rest))
        (print-help)
        (exit 1)])))
 
-(define load-file
+(define args-result
   (parse-args (vector->list (current-command-line-arguments))))
+
+(define load-file (parsed-args-load-file args-result))
+(define lang-arg (parsed-args-lang args-result))
+
+;; 设置语言（如果指定了的话）
+(when lang-arg
+  (set-lang! lang-arg))
 
 (define-runtime-path gui-main-path "gui-main.rkt")
 

@@ -4,7 +4,7 @@
          get-lang
          tr)
 
-(define current-lang (make-parameter 'zh))
+(define current-lang (make-parameter 'en))
 
 (define translations
   (hash
