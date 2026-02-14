@@ -60,6 +60,7 @@ go-rkt/
 - ✅ **Status Display**: Real-time display of current player, scores, etc.
 - ✅ **Menu System**: Complete file operations and game controls
 - ✅ **Multi-language UI**: Supports Chinese/English switching (English by default)
+- ✅ **Recent Files**: Automatically records last 10 opened files for quick access
 
 ## Project Architecture
 
@@ -144,6 +145,7 @@ racket src/main.rkt -h
 - **New Game**: File menu → New Game
 - **Save Record**: File menu → Save SGF / Save Custom Format
 - **Load Record**: File menu → Open SGF / Open Custom Format
+- **Recent Files**: File menu → Recent Files (shows last 10 opened files, click to open)
 
 ## Technical Features
 

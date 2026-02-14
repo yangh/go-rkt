@@ -5,6 +5,7 @@
 
 (require racket/gui)
 (require racket/list)
+(require json)
 (require "board.rkt")
 (require "stone.rkt")
 (require "game-state.rkt")
@@ -24,7 +25,8 @@
            [replay-mode? #f]
            [replay-index 0]
            [selected-pos #f]
-           [message-text (tr 'label-player-black-turn "黑棋行棋")])
+           [message-text (tr 'label-player-black-turn "黑棋行棋")]
+           [recent-files '()])  ; 最近打开的文件列表
     
     ;; 创建界面组件
     (define menu-bar (new menu-bar% [parent this]))
@@ -43,6 +45,12 @@
                                  [callback (lambda (item event) (load-custom-file))]))
     (define save-custom-item (new menu-item% [label (tr 'menu-save-custom "保存自定义格式...")] [parent file-menu]
                                  [callback (lambda (item event) (save-custom-file))]))
+    (new separator-menu-item% [parent file-menu])
+
+    ;; 最近文件子菜单
+    (define recent-menu (new menu% [label (tr 'menu-recent-files "最近文件")] [parent file-menu]))
+    (define recent-menu-items '())  ; 存储最近文件菜单项
+
     (new separator-menu-item% [parent file-menu])
     (define exit-item (new menu-item% [label (tr 'menu-exit "退出")] [parent file-menu]
                            [callback (lambda (item event) (send this show #f))]))
@@ -136,6 +144,115 @@
     ;; 游戏控制方法
     (define/public (get-game-state) game-state)
 
+    ;; 最近文件管理
+    (define recent-files-max 10)  ; 最多保留10个最近文件
+    (define recent-files-file 
+      (build-path (find-system-path 'home-dir) ".go-rkt-recent-files.json"))  ; 家目录下的隐藏文件
+
+    (define (load-recent-files)
+      (if (file-exists? recent-files-file)
+          (with-handlers
+            ([exn:fail? (lambda (exn) '())])
+            (begin
+              (define json-data
+                (with-input-from-file recent-files-file read-json))
+              (if (list? json-data)
+                  json-data
+                  '())))
+          '()))
+
+    (define (save-recent-files)
+      (with-handlers
+        ([exn:fail? (lambda (exn) (void))])
+        (begin
+          (define json-data (jsexpr->string recent-files))
+          (display-to-file json-data recent-files-file #:exists 'truncate))))
+
+    (define (add-recent-file file-path)
+      ;; 将路径转换为字符串
+      (define path-str (if (path? file-path) (path->string file-path) file-path))
+      ;; 移除已存在的同名文件
+      (define filtered (filter (lambda (f) (not (string=? f path-str))) recent-files))
+      ;; 添加到列表开头，并限制数量
+      (define new-list (cons path-str filtered))
+      (set! recent-files (if (> (length new-list) recent-files-max)
+                             (take new-list recent-files-max)
+                             new-list))
+      ;; 保存到文件
+      (save-recent-files)
+      ;; 更新菜单
+      (update-recent-menu))
+
+    (define (update-recent-menu)
+      ;; 清除现有菜单项
+      (for-each (lambda (item) (send item delete)) recent-menu-items)
+      (set! recent-menu-items '())
+      ;; 添加新菜单项
+      (when (null? recent-files)
+        (define empty-item (new menu-item%
+                                 [label (tr 'menu-recent-files-empty "无最近文件")]
+                                 [parent recent-menu]
+                                 [callback (lambda (item event) (void))]))
+        (set! recent-menu-items (list empty-item)))
+      (for ([file (in-list recent-files)])  ; 最新文件在列表开头，直接显示
+        (define file-name (if (string? file)
+                              (last (string-split file "/"))
+                              file))
+        (define file-item (new menu-item%
+                                 [label file-name]
+                                 [parent recent-menu]
+                                 [callback (lambda (item event) (load-recent-file file))]))
+        (set! recent-menu-items (append recent-menu-items (list file-item))))
+      ;; 如果有最近文件，添加分隔线和清除菜单项
+      (when (not (null? recent-files))
+        (new separator-menu-item% [parent recent-menu])
+        (set! recent-menu-items 
+              (append recent-menu-items 
+                      (list (new menu-item%
+                                 [label (tr 'menu-clear-recent "清除最近文件列表")]
+                                 [parent recent-menu]
+                                 [callback (lambda (item event) (clear-recent-files))]))))))
+
+    (define (clear-recent-files)
+      (set! recent-files '())
+      (save-recent-files)
+      (update-recent-menu))
+
+    (define (load-recent-file file-path)
+      ;; 将路径转换为字符串
+      (define path-str (if (path? file-path) (path->string file-path) file-path))
+      (with-handlers
+        ([exn:fail? (lambda (exn)
+                     (send-message-box
+                      (tr 'msg-title-error "错误")
+                      (format (tr 'msg-load-failed "加载失败: ~a") (exn-message exn))))])
+        (if (file-exists? path-str)
+            (let ([loaded-state
+                    (cond
+                      [(string-suffix? path-str ".sgf") (sgf-load-game path-str)]
+                      [(string-suffix? path-str ".txt") (custom-load-game path-str)]
+                      [else
+                       (send-message-box (tr 'msg-title-error "错误")
+                                         (tr 'msg-unsupported-file "不支持的文件格式"))
+                       #f])])
+              (when replay-mode?
+                (exit-replay-mode))
+              (when loaded-state
+                (set! game-state loaded-state)
+                (add-recent-file path-str)  ; 重新添加以更新顺序
+                (update-display)))
+            (begin
+              ;; 文件不存在，从列表中移除并提示用户
+              (set! recent-files (filter (lambda (f) (not (string=? f path-str))) recent-files))
+              (save-recent-files)
+              (update-recent-menu)
+              (send-message-box
+               (tr 'msg-title-error "错误")
+               (format (tr 'msg-file-not-found "文件不存在，已从列表中移除: ~a") path-str))))))
+
+    ;; 初始化最近文件列表
+    (set! recent-files (load-recent-files))
+
     (define (player-name color)
       (if (eq? color 'black)
           (tr 'color-black "黑")
@@ -157,6 +274,7 @@
       (send save-sgf-item set-label (tr 'menu-save-sgf "保存SGF..."))
       (send open-custom-item set-label (tr 'menu-open-custom "打开自定义格式..."))
       (send save-custom-item set-label (tr 'menu-save-custom "保存自定义格式..."))
+      (send recent-menu set-label (tr 'menu-recent-files "最近文件"))
       (send exit-item set-label (tr 'menu-exit "退出"))
       (send about-item set-label (tr 'menu-about "关于"))
       (send lang-zh-item set-label (tr 'menu-lang-zh "中文"))
@@ -169,6 +287,7 @@
             (if replay-mode?
                 (tr 'button-end-replay "结束")
                 (tr 'button-replay "复盘")))
+      (update-recent-menu)
       (update-display))
 
     (define (switch-language lang)
@@ -293,6 +412,7 @@
             (exit-replay-mode))
           (define loaded-state (sgf-load-game file-path))
           (set! game-state loaded-state)
+          (add-recent-file file-path)
           (update-display))))
     
     (define (save-sgf-file)
@@ -314,6 +434,7 @@
             (exit-replay-mode))
           (define loaded-state (custom-load-game file-path))
           (set! game-state loaded-state)
+          (add-recent-file file-path)
           (update-display))))
     
     (define (save-custom-file)
@@ -458,7 +579,10 @@
     (send next-move-button show #f)
     (send next-five-move-button show #f)
     (send last-move-button show #f)
-    
+
+    ;; 初始化最近文件菜单
+    (update-recent-menu)
+
     ;; 初始化显示
     (refresh-i18n)))
 
